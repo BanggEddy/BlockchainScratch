@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Composite Insurance Dapp</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; }
+    fieldset { margin-bottom: 20px; }
+    label { display: block; margin: 6px 0 2px; }
+    input, select, button { padding: 6px; width: 100%; max-width: 320px; }
+    .row { margin-bottom: 10px; }
+    #log { white-space: pre-wrap; background: #f8f8f8; padding: 12px; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>Car Insurance – Composite Contracts</h1>
+
+  <p>Connect with MetaMask and paste deployed contract addresses below. Only the handling department contract holds funds and makes payouts.</p>
+
+  <fieldset>
+    <legend>Configuration</legend>
+    <div class="row">
+      <button id="connect">Connect Wallet</button>
+    </div>
+    <div class="row">
+      <label>claimprocessingDep address</label>
+      <input id="processingAddress" placeholder="0x..." />
+    </div>
+    <div class="row">
+      <label>ClaimsHandlingDep address</label>
+      <input id="handlingAddress" placeholder="0x..." />
+    </div>
+    <div class="row">
+      <label>Garage address (optional)</label>
+      <input id="garageAddress" placeholder="0x..." />
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Add customer (admin only)</legend>
+    <label>Customer address</label>
+    <input id="customer" placeholder="0x..." />
+    <label>Name</label>
+    <input id="name" placeholder="Alice" />
+    <label>Policy</label>
+    <select id="policy">
+      <option value="1">ThirdParty</option>
+      <option value="2">AllRisk</option>
+    </select>
+    <button id="addCustomer">Add customer</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Submit Third-Party claim</legend>
+    <label>Percentage (0-100)</label>
+    <input id="tpPercent" type="number" min="0" max="100" />
+    <button id="submitThird">Submit Third-party claim</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Submit All-risk claim</legend>
+    <label>Damage (0-100)</label>
+    <input id="arDamage" type="number" min="0" max="100" />
+    <button id="submitAllRisk">Submit All-risk claim</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Admin payouts (ClaimsHandlingDep)</legend>
+    <label>Claim ID</label>
+    <input id="claimId" type="number" />
+    <label>Recipient address (third-party or garage)</label>
+    <input id="recipient" placeholder="0x..." />
+    <button id="payThird">pay_to_the_third</button>
+    <button id="payGarage">pay_to_garage</button>
+    <label>Fund handling contract (ETH)</label>
+    <input id="fundAmount" type="number" placeholder="1.0" />
+    <button id="fund">Send ETH to ClaimsHandlingDep</button>
+  </fieldset>
+
+  <h3>Log</h3>
+  <div id="log"></div>
+
+  <script>
+    let provider, signer, processing, handling;
+
+    const processingAbi = [
+      "function addcustomer(address,string,uint8)",
+      "function Third_party_car_insurance_form(uint256)",
+      "function All_risk_car_insurance_form(uint256)"
+    ];
+    const handlingAbi = [
+      "function pay_to_the_third(uint256,address payable)",
+      "function pay_to_garage(uint256,address payable)"
+    ];
+
+    const log = (msg) => {
+      const el = document.getElementById("log");
+      el.textContent = `${msg}\n${el.textContent}`;
+    };
+
+    async function ensureContracts() {
+      if (!signer) throw new Error("Connect wallet first");
+      const pAddr = document.getElementById("processingAddress").value;
+      const hAddr = document.getElementById("handlingAddress").value;
+      if (!pAddr || !hAddr) throw new Error("Set contract addresses");
+      processing = new ethers.Contract(pAddr, processingAbi, signer);
+      handling = new ethers.Contract(hAddr, handlingAbi, signer);
+    }
+
+    document.getElementById("connect").onclick = async () => {
+      if (!window.ethereum) return alert("MetaMask required");
+      provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      signer = await provider.getSigner();
+      log(`Connected: ${await signer.getAddress()}`);
+    };
+
+    document.getElementById("addCustomer").onclick = async () => {
+      try {
+        await ensureContracts();
+        const tx = await processing.addcustomer(
+          document.getElementById("customer").value,
+          document.getElementById("name").value,
+          Number(document.getElementById("policy").value)
+        );
+        log(`addcustomer tx: ${tx.hash}`);
+        await tx.wait();
+        log("Customer added");
+      } catch (err) {
+        log(err.message);
+      }
+    };
+
+    document.getElementById("submitThird").onclick = async () => {
+      try {
+        await ensureContracts();
+        const tx = await processing.Third_party_car_insurance_form(
+          Number(document.getElementById("tpPercent").value)
+        );
+        log(`Third-party claim tx: ${tx.hash}`);
+        await tx.wait();
+        log("Claim submitted");
+      } catch (err) {
+        log(err.message);
+      }
+    };
+
+    document.getElementById("submitAllRisk").onclick = async () => {
+      try {
+        await ensureContracts();
+        const tx = await processing.All_risk_car_insurance_form(
+          Number(document.getElementById("arDamage").value)
+        );
+        log(`All-risk claim tx: ${tx.hash}`);
+        await tx.wait();
+        log("Claim submitted");
+      } catch (err) {
+        log(err.message);
+      }
+    };
+
+    document.getElementById("payThird").onclick = async () => {
+      try {
+        await ensureContracts();
+        const tx = await handling.pay_to_the_third(
+          Number(document.getElementById("claimId").value),
+          document.getElementById("recipient").value
+        );
+        log(`pay_to_the_third tx: ${tx.hash}`);
+        await tx.wait();
+        log("Third-party paid");
+      } catch (err) {
+        log(err.message);
+      }
+    };
+
+    document.getElementById("payGarage").onclick = async () => {
+      try {
+        await ensureContracts();
+        const tx = await handling.pay_to_garage(
+          Number(document.getElementById("claimId").value),
+          document.getElementById("recipient").value
+        );
+        log(`pay_to_garage tx: ${tx.hash}`);
+        await tx.wait();
+        log("Garage paid");
+      } catch (err) {
+        log(err.message);
+      }
+    };
+
+    document.getElementById("fund").onclick = async () => {
+      try {
+        await ensureContracts();
+        const amount = document.getElementById("fundAmount").value;
+        const tx = await signer.sendTransaction({
+          to: document.getElementById("handlingAddress").value,
+          value: ethers.parseEther(amount || "0")
+        });
+        log(`Fund tx: ${tx.hash}`);
+        await tx.wait();
+        log("Handling contract funded");
+      } catch (err) {
+        log(err.message);
+      }
+    };
+  </script>
+</body>
+</html>
+
