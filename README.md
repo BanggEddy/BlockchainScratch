@@ -1,6 +1,6 @@
 ## Car Insurance — Composite Smart Contracts
 
-Projet inspiré du sujet *Project-2025.pdf* (car insurance avec contrats composites). Trois contrats Solidity représentent les départements du flux métier et un mini Dapp HTML permet de tester via MetaMask.
+Trois contrats Solidity représentent les départements du flux métier et un mini Dapp HTML permet de tester via MetaMask.
 
 ### Structure
 - `contracts/CompositeInsurance.sol` — contrats `claimprocessingDep`, `ClaimsHandlingDep`, `Garage` avec logique de décision.
